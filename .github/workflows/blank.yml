@@ -14,8 +14,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set hostname to blackhero
-        run: sudo hostnamectl set-hostname blackhero
+      - name: Set hostname to biralo
+        run: sudo hostnamectl set-hostname biralo
 
       - name: Download VPS backup (if any)
         uses: actions/download-artifact@v4
@@ -27,7 +27,7 @@ jobs:
       - name: Install prerequisites
         run: |
           sudo apt update
-          sudo apt install -y tmate curl unzip sudo net-tools neofetch
+          sudo apt install -y curl unzip sudo net-tools neofetch
 
       - name: Install Tailscale official script
         run: |
@@ -37,7 +37,7 @@ jobs:
         run: |
           if [ -f ./backup/backup.zip ]; then
             echo "Restoring from backup..."
-            unzip -o ./backup/backup.zip -d /
+            sudo unzip -o ./backup/backup.zip -d /
           else
             echo "No backup found, starting fresh"
           fi
@@ -54,30 +54,24 @@ jobs:
         run: |
           sudo tailscaled &
           sleep 8
-          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=blackhero || echo "Tailscale already up"
+          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=biralo || echo "Tailscale already up"
 
-      - name: Create user blackhero with sudo
+      - name: Create user biralo with sudo
         run: |
-          if ! id -u blackhero >/dev/null 2>&1; then
-            sudo useradd -m -s /bin/bash blackhero
-            echo "blackhero:virat321" | sudo chpasswd
-            sudo usermod -aG sudo blackhero
-            echo "blackhero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/blackhero
+          if ! id -u biralo >/dev/null 2>&1; then
+            sudo useradd -m -s /bin/bash biralo
+            echo "biralo:biralo" | sudo chpasswd
+            sudo usermod -aG sudo biralo
+            echo "biralo ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/biralo
           fi
 
-      - name: Start tmate session for SSH access
-        uses: mxschmitt/action-tmate@v3
-
-      - name: Show Tailscale IP and tmate info
+      - name: Show Tailscale IP
         run: |
           echo "🔗 Tailscale IP:"
           tailscale ip -4 || echo "Tailscale IP not found"
-          echo ""
-          echo "🔑 tmate SSH session:"
-          cat $HOME/.tmate.sock/ssh
 
-      - name: Sleep to keep VPS alive
-        run: sleep 21600  # 6 hours
+      - name: Sleep until backup time (5h 45m)
+        run: sleep 20700  # 5 hours 45 minutes
 
       - name: Backup VPS data and tailscale state
         run: |
@@ -92,3 +86,6 @@ jobs:
         with:
           name: vps-backup
           path: ${{ github.workspace }}/backup.zip
+
+      - name: Final sleep until job ends
+        run: sleep 900  # 15 minutes to reach full 6h
