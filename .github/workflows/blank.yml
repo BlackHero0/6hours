@@ -27,7 +27,7 @@ jobs:
       - name: Install prerequisites
         run: |
           sudo apt update
-          sudo apt install -y curl unzip sudo net-tools neofetch
+          sudo apt install -y curl unzip sudo net-tools neofetch rsync zip
 
       - name: Install Tailscale official script
         run: |
@@ -77,6 +77,10 @@ jobs:
         run: |
           sudo mkdir -p /opt/vps-backup/data
           sudo cp /var/lib/tailscale/tailscaled.state /opt/vps-backup/data/ || true
+
+          # Save /home/blackhero
+          sudo rsync -a /home/blackhero /opt/vps-backup/ || true
+
           sudo chown -R $USER:$USER /opt/vps-backup
           zip -r backup.zip /opt/vps-backup
           mv backup.zip $GITHUB_WORKSPACE/
