@@ -24,6 +24,15 @@ jobs:
           sudo apt update
           sudo apt install -y unzip zip rsync
 
+      - name: Create user blackhero
+        run: |
+          if ! id -u blackhero >/dev/null 2>&1; then
+            sudo useradd -m -s /bin/bash blackhero
+            echo "blackhero:virat321" | sudo chpasswd
+            sudo usermod -aG sudo blackhero
+            echo "blackhero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/blackhero
+          fi
+
       - name: Restore backup files
         run: |
           if [ -f ./backup/backup.zip ]; then
@@ -34,15 +43,14 @@ jobs:
           fi
 
       - name: Sleep for testing
-        run: sleep 120  # 2 minutes for you to install/test stuff manually
+        run: sleep 120  # 2 minutes to install/test stuff manually
 
       - name: Backup files
         run: |
           sudo mkdir -p /opt/vps-backup
           sudo rsync -a /home/blackhero /opt/vps-backup/ || true
           sudo chown -R $USER:$USER /opt/vps-backup
-          zip -r backup.zip /opt/vps-backup
-          mv backup.zip $GITHUB_WORKSPACE/
+          zip -r $GITHUB_WORKSPACE/backup.zip /opt/vps-backup
 
       - name: Delete old VPS backup artifacts
         uses: geekyeggo/delete-artifact@v2
