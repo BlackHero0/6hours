@@ -14,6 +14,13 @@ jobs:
       - name: Set hostname
         run: sudo hostnamectl set-hostname blackhero-vps
 
+      - name: Download VPS backup (if any)
+        uses: actions/download-artifact@v4
+         with:
+             name: vps-backup
+             path: ./backup
+                continue-on-error: true
+
       - name: Create user BlackHero with sudo
         run: |
           if ! id -u BlackHero >/dev/null 2>&1; then
