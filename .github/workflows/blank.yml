@@ -6,7 +6,7 @@ on:
 jobs:
   vps-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repo
@@ -22,7 +22,7 @@ jobs:
       - name: Install prerequisites
         run: |
           sudo apt update
-          sudo apt install -y unzip zip rsync
+          sudo apt install -y unzip zip rsync curl
 
       - name: Create user blackhero
         run: |
@@ -33,6 +33,10 @@ jobs:
             echo "blackhero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/blackhero
           fi
 
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
       - name: Restore backup files
         run: |
           if [ -f ./backup/backup.zip ]; then
@@ -42,12 +46,32 @@ jobs:
             echo "No backup found, starting fresh"
           fi
 
+      - name: Restore Tailscale state
+        run: |
+          if [ -f /opt/vps-backup/data/tailscaled.state ]; then
+            sudo mkdir -p /var/lib/tailscale
+            sudo cp /opt/vps-backup/data/tailscaled.state /var/lib/tailscale/tailscaled.state
+            sudo chmod 600 /var/lib/tailscale/tailscaled.state
+          fi
+
+      - name: Start Tailscale
+        run: |
+          sudo tailscaled &
+          sleep 8
+          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=blackhero-test || echo "Tailscale already running"
+
+      - name: Show Tailscale IP
+        run: |
+          echo "🔗 Tailscale IP:"
+          tailscale ip -4 || echo "Tailscale IP not found"
+
       - name: Sleep for testing
-        run: sleep 120  # 2 minutes to install/test stuff manually
+        run: sleep 120  # 2 minutes for you to connect + install stuff
 
       - name: Backup files
         run: |
-          sudo mkdir -p /opt/vps-backup
+          sudo mkdir -p /opt/vps-backup/data
+          sudo cp /var/lib/tailscale/tailscaled.state /opt/vps-backup/data/ || true
           sudo rsync -a /home/blackhero /opt/vps-backup/ || true
           sudo chown -R $USER:$USER /opt/vps-backup
           zip -r $GITHUB_WORKSPACE/backup.zip /opt/vps-backup
