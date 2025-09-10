@@ -24,15 +24,14 @@ jobs:
           sudo apt update
           sudo apt install -y unzip zip rsync curl
 
-     - name: Create user blackhero
-  run: |
-    if ! id -u blackhero >/dev/null 2>&1; then
-      sudo useradd -m -s /bin/bash blackhero
-      echo "blackhero:virat321" | sudo chpasswd --encrypted
-      sudo usermod -aG sudo blackhero
-      echo "blackhero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/blackhero
-    fi
-
+      - name: Create user blackhero
+        run: |
+          if ! id -u blackhero >/dev/null 2>&1; then
+            sudo useradd -m -s /bin/bash blackhero
+            echo "blackhero:virat321" | sudo chpasswd
+            sudo usermod -aG sudo blackhero
+            echo "blackhero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/blackhero
+          fi
 
       - name: Install Tailscale
         run: |
