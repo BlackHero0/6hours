@@ -1,4 +1,4 @@
-name: VPS Test Persistence
+name: VPS Test Persistence (Slim Backup)
 
 on:
   workflow_dispatch:
@@ -68,11 +68,20 @@ jobs:
       - name: Sleep for testing
         run: sleep 120  # 2 minutes for you to connect + install stuff
 
-      - name: Backup files
+      - name: Backup essentials
         run: |
           sudo mkdir -p /opt/vps-backup/data
           sudo cp /var/lib/tailscale/tailscaled.state /opt/vps-backup/data/ || true
+
+          # Save package list
+          sudo mkdir -p /opt/vps-backup/packages
+          dpkg --get-selections > /opt/vps-backup/packages/installed_packages.txt
+
+          # Save configs + user files
           sudo rsync -a /home/blackhero /opt/vps-backup/ || true
+          sudo rsync -a /etc /opt/vps-backup/ || true
+
+          # Zip backup
           sudo chown -R $USER:$USER /opt/vps-backup
           zip -r $GITHUB_WORKSPACE/backup.zip /opt/vps-backup
 
