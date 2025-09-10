@@ -1,11 +1,12 @@
-name: VPS Backup Test
+name: Continuous Persistent VPS Backup
 
 on:
   workflow_dispatch:
 
 jobs:
-  test-vps:
+  persistent-vps:
     runs-on: ubuntu-latest
+    timeout-minutes: 720  # 12 hours to ensure long backups finish
 
     steps:
       - name: Checkout repo
@@ -14,12 +15,12 @@ jobs:
       - name: Set hostname
         run: sudo hostnamectl set-hostname blackhero-vps
 
-      - name: Download VPS backup (if any)
+      - name: Download previous VPS backup (if any)
         uses: actions/download-artifact@v4
-         with:
-             name: vps-backup
-             path: ./backup
-                continue-on-error: true
+        with:
+          name: vps-backup
+          path: ./backup
+        continue-on-error: true
 
       - name: Create user BlackHero with sudo
         run: |
@@ -34,16 +35,21 @@ jobs:
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
           sudo tailscaled &
-          sleep 8
+          sleep 10
           sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=blackhero-vps || echo "Tailscale already up"
 
       - name: Show Tailscale IP
         run: tailscale ip -4 || echo "Tailscale IP not found"
 
-      - name: Sleep for 5 minutes for testing
-        run: sleep 300
+      - name: Restore previous backup
+        run: |
+          if [ -f ./backup/backup.zip ]; then
+            unzip -o ./backup/backup.zip -d /
+          else
+            echo "No previous backup found"
+          fi
 
-      - name: Backup /home/BlackHero excluding .ghcup and caches
+      - name: Backup /home/BlackHero excluding .ghcup and cache
         run: |
           sudo mkdir -p /opt/vps-backup
           sudo rsync -a --exclude='.ghcup' --exclude='.cache' /home/BlackHero /opt/vps-backup/
@@ -57,4 +63,4 @@ jobs:
           path: backup.zip
 
       - name: Finished
-        run: echo "✅ Test backup completed"
+        run: echo "✅ Full backup completed"
