@@ -1,78 +1,53 @@
-name: Test VPS with Tailscale Backup (5m)
+name: VPS Backup Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  vps-session:
+  test-vps:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Whole workflow max runtime
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set hostname
-        run: sudo hostnamectl set-hostname blackhero
+        run: sudo hostnamectl set-hostname blackhero-vps
 
-      - name: Download existing backup (if any)
-        uses: actions/download-artifact@v4
-        with:
-          name: vps-backup
-          path: ./backup
-        continue-on-error: true
-
-      - name: Restore backup files
+      - name: Create user BlackHero with sudo
         run: |
-          if [ -f ./backup/backup.zip ]; then
-            unzip -o ./backup/backup.zip -d /
-          else
-            echo "No backup found, starting fresh"
-          fi
-
-      - name: Create user blackhero with sudo
-        run: |
-          if ! id -u blackhero >/dev/null 2>&1; then
-            sudo useradd -m -s /bin/bash blackhero
-            echo "blackhero:virat321" | sudo chpasswd
-            sudo usermod -aG sudo blackhero
-            echo "blackhero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/blackhero
+          if ! id -u BlackHero >/dev/null 2>&1; then
+            sudo useradd -m -s /bin/bash BlackHero
+            echo "BlackHero:virat321" | sudo chpasswd
+            sudo usermod -aG sudo BlackHero
+            echo "BlackHero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/BlackHero
           fi
 
       - name: Install Tailscale
-        run: curl -fsSL https://tailscale.com/install.sh | sh
-
-      - name: Start Tailscale
         run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
           sudo tailscaled &
           sleep 8
-          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=blackhero || echo "Tailscale already up"
+          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=blackhero-vps || echo "Tailscale already up"
 
       - name: Show Tailscale IP
-        run: |
-          echo "🔗 Tailscale IP:"
-          tailscale ip -4 || echo "Tailscale IP not found"
+        run: tailscale ip -4 || echo "Tailscale IP not found"
 
-      - name: Wait for you to connect & test (5m)
-        run: |
-          echo "⏳ You have 5 minutes to connect and install/test things..."
-          sleep 300
+      - name: Sleep for 5 minutes for testing
+        run: sleep 300
 
-      - name: Backup user files and installed packages
+      - name: Backup /home/BlackHero excluding .ghcup and caches
         run: |
           sudo mkdir -p /opt/vps-backup
-          rsync -a --relative /home/blackhero /opt/vps-backup/ || true
-          dpkg --get-selections > /opt/vps-backup/installed-packages.list
+          sudo rsync -a --exclude='.ghcup' --exclude='.cache' /home/BlackHero /opt/vps-backup/
+          sudo chown -R $USER:$USER /opt/vps-backup
           zip -r backup.zip /opt/vps-backup
 
-      - name: Upload VPS backup artifact
+      - name: Upload backup artifact
         uses: actions/upload-artifact@v4
         with:
           name: vps-backup
           path: backup.zip
 
-      - name: Delete old artifacts (ignore errors if none)
-        uses: geekyeggo/delete-artifact@v2
-        with:
-          name: vps-backup
-        continue-on-error: true
+      - name: Finished
+        run: echo "✅ Test backup completed"
