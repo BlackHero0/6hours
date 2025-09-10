@@ -1,23 +1,18 @@
-name: Continuous Persistent VPS
+name: VPS Test Persistence
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
 
 jobs:
-  vps-session:
+  vps-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 350  # Just under 6 hours
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set hostname to blackhero
-        run: sudo hostnamectl set-hostname blackhero
-
-      - name: Download VPS backup (if any)
+      - name: Download backup (if any)
         uses: actions/download-artifact@v4
         with:
           name: vps-backup
@@ -27,11 +22,7 @@ jobs:
       - name: Install prerequisites
         run: |
           sudo apt update
-          sudo apt install -y curl unzip sudo net-tools neofetch rsync zip
-
-      - name: Install Tailscale official script
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo apt install -y unzip zip rsync
 
       - name: Restore backup files
         run: |
@@ -42,54 +33,24 @@ jobs:
             echo "No backup found, starting fresh"
           fi
 
-      - name: Restore Tailscale state
+      - name: Sleep for testing
+        run: sleep 120  # 2 minutes for you to install/test stuff manually
+
+      - name: Backup files
         run: |
-          if [ -f /opt/vps-backup/data/tailscaled.state ]; then
-            sudo mkdir -p /var/lib/tailscale
-            sudo cp /opt/vps-backup/data/tailscaled.state /var/lib/tailscale/tailscaled.state
-            sudo chmod 600 /var/lib/tailscale/tailscaled.state
-          fi
-
-      - name: Start Tailscale
-        run: |
-          sudo tailscaled &
-          sleep 8
-          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=blackhero || echo "Tailscale already up"
-
-      - name: Create user blackhero with sudo
-        run: |
-          if ! id -u blackhero >/dev/null 2>&1; then
-            sudo useradd -m -s /bin/bash blackhero
-            echo "blackhero:virat321" | sudo chpasswd
-            sudo usermod -aG sudo blackhero
-            echo "blackhero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/blackhero
-          fi
-
-      - name: Show Tailscale IP
-        run: |
-          echo "🔗 Tailscale IP:"
-          tailscale ip -4 || echo "Tailscale IP not found"
-
-      - name: Sleep until backup time (5h 45m)
-        run: sleep 20700  # 5 hours 45 minutes
-
-      - name: Backup VPS data and tailscale state
-        run: |
-          sudo mkdir -p /opt/vps-backup/data
-          sudo cp /var/lib/tailscale/tailscaled.state /opt/vps-backup/data/ || true
-
-          # Save /home/blackhero
+          sudo mkdir -p /opt/vps-backup
           sudo rsync -a /home/blackhero /opt/vps-backup/ || true
-
           sudo chown -R $USER:$USER /opt/vps-backup
           zip -r backup.zip /opt/vps-backup
           mv backup.zip $GITHUB_WORKSPACE/
 
-      - name: Upload VPS backup artifact
+      - name: Delete old VPS backup artifacts
+        uses: geekyeggo/delete-artifact@v2
+        with:
+          name: vps-backup
+
+      - name: Upload new backup
         uses: actions/upload-artifact@v4
         with:
           name: vps-backup
           path: ${{ github.workspace }}/backup.zip
-
-      - name: Final sleep until job ends
-        run: sleep 900  # 15 minutes to reach full 6h
