@@ -1,12 +1,14 @@
-name: Continuous Persistent VPS Backup
+name: Continuous Persistent VPS (Backup Restore + Tailscale IP)
 
 on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
   workflow_dispatch:
 
 jobs:
   persistent-vps:
     runs-on: ubuntu-latest
-    timeout-minutes: 720  # 12 hours to ensure long backups finish
+    timeout-minutes: 360  # 6 hours
 
     steps:
       - name: Checkout repo
@@ -14,13 +16,6 @@ jobs:
 
       - name: Set hostname
         run: sudo hostnamectl set-hostname blackhero-vps
-
-      - name: Download previous VPS backup (if any)
-        uses: actions/download-artifact@v4
-        with:
-          name: vps-backup
-          path: ./backup
-        continue-on-error: true
 
       - name: Create user BlackHero with sudo
         run: |
@@ -31,36 +26,41 @@ jobs:
             echo "BlackHero ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/BlackHero
           fi
 
+      - name: Download previous VPS backup (if any)
+        uses: actions/download-artifact@v4
+        with:
+          name: vps-backup
+          path: ./backup
+        continue-on-error: true
+
+      - name: Restore backup files
+        run: |
+          if [ -f ./backup/backup.zip ]; then
+            unzip -o ./backup/backup.zip -d /
+          else
+            echo "No backup found, starting fresh"
+          fi
+
+      - name: Restore Tailscale state
+        run: |
+          if [ -f /opt/vps-backup/data/tailscaled.state ]; then
+            sudo mkdir -p /var/lib/tailscale
+            sudo cp /opt/vps-backup/data/tailscaled.state /var/lib/tailscale/tailscaled.state
+            sudo chmod 600 /var/lib/tailscale/tailscaled.state
+          fi
+
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Start Tailscale
+        run: |
           sudo tailscaled &
-          sleep 10
+          sleep 8
           sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname=blackhero-vps || echo "Tailscale already up"
 
       - name: Show Tailscale IP
         run: tailscale ip -4 || echo "Tailscale IP not found"
 
-      - name: Restore previous backup
-        run: |
-          if [ -f ./backup/backup.zip ]; then
-            unzip -o ./backup/backup.zip -d /
-          else
-            echo "No previous backup found"
-          fi
-
-      - name: Backup /home/BlackHero excluding .ghcup and cache
-        run: |
-          sudo mkdir -p /opt/vps-backup
-          sudo rsync -a --exclude='.ghcup' --exclude='.cache' /home/BlackHero /opt/vps-backup/
-          sudo chown -R $USER:$USER /opt/vps-backup
-          zip -r backup.zip /opt/vps-backup
-
-      - name: Upload backup artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vps-backup
-          path: backup.zip
-
-      - name: Finished
-        run: echo "✅ Full backup completed"
+      - name: Keep VPS alive
+        run: sleep 21600  # 6 hours
