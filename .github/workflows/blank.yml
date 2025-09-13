@@ -8,7 +8,7 @@ on:
 jobs:
   persistent-vps:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 hours
+    timeout-minutes: 354  # 5 hours 54 minutes
 
     steps:
       - name: Checkout repo
@@ -63,4 +63,4 @@ jobs:
         run: tailscale ip -4 || echo "Tailscale IP not found"
 
       - name: Keep VPS alive
-        run: sleep 21600  # 6 hours
+        run: sleep 21240  # 5 hours 54 minutes
