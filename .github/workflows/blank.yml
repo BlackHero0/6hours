@@ -1,4 +1,4 @@
-name: Continuous Persistent VPS (Backup Restore + Tailscale IP)
+name: Continuous Persistent VPS
 
 on:
   schedule:
